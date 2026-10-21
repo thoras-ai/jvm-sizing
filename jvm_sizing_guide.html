@@ -1,0 +1,1021 @@
+<title>JVM Memory Sizing Guide — Thoras</title>
+<style>
+/* ── Tokens ── */
+:root {
+  --bg:       #FAFAF8;
+  --bg2:      #F2EFE9;
+  --text:     #1A1A2E;
+  --muted:    #6B6860;
+  --accent:   #1D5F8A;
+  --accent2:  #16496E;
+  --warn-bg:  #FDF1EB;
+  --warn-bd:  #C4500A;
+  --warn-txt: #8C3606;
+  --tip-bg:   #EDF4FA;
+  --tip-bd:   #1D5F8A;
+  --ok-bg:    #EDF5F0;
+  --ok-bd:    #1D7A42;
+  --rule:     #D8D5CF;
+  --code-bg:  #EDE9E3;
+  --step-num: #1D5F8A;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:       #131313;
+    --bg2:      #1C1C1C;
+    --text:     #E5E2DA;
+    --muted:    #888075;
+    --accent:   #5A9EC8;
+    --accent2:  #7AB8DA;
+    --warn-bg:  #2A1508;
+    --warn-bd:  #D4642A;
+    --warn-txt: #E8956A;
+    --tip-bg:   #0E1E2A;
+    --tip-bd:   #5A9EC8;
+    --ok-bg:    #0C1F13;
+    --ok-bd:    #2E9A5A;
+    --rule:     #333;
+    --code-bg:  #1E1E1E;
+    --step-num: #5A9EC8;
+  }
+}
+:root[data-theme="light"] {
+  --bg:#FAFAF8; --bg2:#F2EFE9; --text:#1A1A2E; --muted:#6B6860;
+  --accent:#1D5F8A; --accent2:#16496E;
+  --warn-bg:#FDF1EB; --warn-bd:#C4500A; --warn-txt:#8C3606;
+  --tip-bg:#EDF4FA; --tip-bd:#1D5F8A;
+  --ok-bg:#EDF5F0; --ok-bd:#1D7A42;
+  --rule:#D8D5CF; --code-bg:#EDE9E3; --step-num:#1D5F8A;
+}
+:root[data-theme="dark"] {
+  --bg:#131313; --bg2:#1C1C1C; --text:#E5E2DA; --muted:#888075;
+  --accent:#5A9EC8; --accent2:#7AB8DA;
+  --warn-bg:#2A1508; --warn-bd:#D4642A; --warn-txt:#E8956A;
+  --tip-bg:#0E1E2A; --tip-bd:#5A9EC8;
+  --ok-bg:#0C1F13; --ok-bd:#2E9A5A;
+  --rule:#333; --code-bg:#1E1E1E; --step-num:#5A9EC8;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1.65;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 32px 80px;
+}
+h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin-bottom: 32px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 24px;
+}
+h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+h3 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin: 1.2rem 0 0.4rem;
+}
+p { margin: 0.55rem 0; }
+ul, ol { padding-left: 1.4rem; }
+li { margin: 0.3rem 0; }
+strong { font-weight: 600; }
+code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.82em;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+pre {
+  background: var(--code-bg);
+  border-radius: 6px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-size: 0.8em;
+  line-height: 1.6;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  margin: 0.8rem 0;
+}
+pre code { background: none; padding: 0; }
+
+.trio {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 28px 0 36px;
+}
+.concept {
+  background: var(--bg2);
+  border-top: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+.concept .concept-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.concept p { font-size: 0.83rem; line-height: 1.55; color: var(--text); }
+
+.step {
+  margin: 40px 0 0;
+  padding-left: 56px;
+  position: relative;
+}
+.step::before {
+  content: attr(data-n);
+  position: absolute;
+  left: 0;
+  top: -4px;
+  font-family: Georgia, serif;
+  font-size: 2.8rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--step-num);
+  opacity: 0.18;
+}
+.step-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px;
+}
+.step-body { font-size: 0.92rem; }
+
+.warn, .tip, .ok, .rule-box {
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.warn     { background: var(--warn-bg); border-left: 4px solid var(--warn-bd); color: var(--warn-txt); }
+.warn strong { color: var(--warn-bd); }
+.tip      { background: var(--tip-bg);  border-left: 4px solid var(--tip-bd); }
+.ok       { background: var(--ok-bg);   border-left: 4px solid var(--ok-bd); }
+.rule-box {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-bd);
+  border-left: 4px solid var(--warn-bd);
+  color: var(--warn-txt);
+}
+.rule-box .rule-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--warn-bd);
+  margin-bottom: 4px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8rem 0;
+  font-size: 0.82rem;
+}
+thead th, th {
+  background: var(--bg2);
+  font-weight: 600;
+  text-align: left;
+  padding: 7px 10px;
+  border: 1px solid var(--rule);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+td {
+  padding: 7px 10px;
+  border: 1px solid var(--rule);
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: var(--bg2); }
+.qr-table td:first-child { font-weight: 600; white-space: nowrap; }
+.qr-table td:nth-child(2) { font-family: monospace; color: var(--accent); }
+
+hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
+
+footer {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+@media print {
+  @page { margin: 1.5cm; }
+  body { max-width: 100%; padding: 0; font-size: 10.5pt; }
+  .step { margin-top: 20px; }
+  .step::before { font-size: 2rem; }
+  .trio { gap: 10px; }
+  .concept { break-inside: avoid; }
+  pre, .warn, .tip, .ok, .rule-box { break-inside: avoid; }
+  .step { break-inside: avoid; }
+  .decision-box { break-inside: avoid; }
+  tr { break-inside: avoid; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1rem; }
+  h2, h3 { break-after: avoid; }
+  .step-title { break-after: avoid; }
+  thead { display: table-header-group; }
+  footer { break-before: avoid; margin-top: 24px; }
+  figure { break-inside: avoid; }
+}
+
+/* ── Visuals ── */
+figure { margin: 1.2rem 0; }
+figcaption {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+  line-height: 1.45;
+  font-style: italic;
+}
+
+/* Visual 1: Input flow */
+.fig-flow .flow-group {
+  display: grid;
+  grid-template-columns: 175px 1fr;
+  gap: 0 0.75rem;
+  align-items: stretch;
+  margin: 0.45rem 0;
+}
+.flow-box {
+  background: var(--bg2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.83rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+.flow-group.optional .flow-box {
+  border-style: dashed;
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 400;
+}
+.flow-outs {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.2rem 0;
+}
+.flow-out {
+  font-size: 0.81rem;
+  color: var(--muted);
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+.flow-arr { color: var(--accent); flex-shrink: 0; }
+
+/* Visual 2: two-panel dual plots */
+.fig-plots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.fig-panel {
+  display: flex;
+  flex-direction: column;
+}
+.fig-panel-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: center;
+  margin: 0 0 0.3rem;
+}
+.fig-panel-note {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--muted);
+  text-align: center;
+  margin: 0.2rem 0 0;
+}
+.fig-panel svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Visual 3: HTML/CSS stacked bar */
+.stack-total {
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+.stack-bar {
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.seg {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  min-height: 2.8rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.seg:last-child { border-bottom: none; min-height: 6.5rem; }
+.seg-name { font-size: 0.85rem; font-weight: 600; }
+.seg-sub  { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.seg-hd  { background: var(--tip-bg); }
+.seg-fb  { background: var(--code-bg); }
+.seg-ms  { background: var(--ok-bg); }
+.seg-xmx { background: var(--bg2); }
+.stack-note {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+  margin-top: 0.35rem;
+}
+
+/* Default rationale callout grids */
+.why-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.12rem 0.75rem;
+  margin: 0.75rem 0;
+  font-size: 0.83rem;
+  align-items: baseline;
+}
+.why-term { font-weight: 600; white-space: nowrap; }
+.why-desc { color: var(--muted); }
+
+@media (max-width: 500px) {
+  .fig-flow .flow-group { grid-template-columns: 1fr; gap: 0.25rem 0; }
+  .fig-plots { grid-template-columns: 1fr; }
+  .why-grid { grid-template-columns: 1fr; gap: 0; }
+  .why-term { margin-top: 0.4rem; }
+}
+</style>
+
+<h1>JVM Memory Sizing Guide</h1>
+<p class="subtitle">Thoras &nbsp;·&nbsp; Using diagnostics to right-size JVM heap and container memory</p>
+
+<!-- ── Section 1: What this guide does ─────────────────────────────────────── -->
+<div class="step" data-n="1">
+  <div class="step-title">What this guide does</div>
+  <div class="step-body">
+    <p>JVM applications manage their own heap inside a Kubernetes container. Thoras observes
+       the container's total memory working set, but the Java heap is a separate sizing concern.
+       This guide uses your Thoras diagnostics to recommend four values:</p>
+    <ul>
+      <li>JVM maximum heap (<code>-Xmx</code> or <code>MaxRAMPercentage</code>)</li>
+      <li>JVM initial heap (<code>-Xms</code> or <code>InitialRAMPercentage</code>)</li>
+      <li>Kubernetes memory request</li>
+      <li>Kubernetes memory limit</li>
+    </ul>
+    <div class="tip">
+      The script runs locally against files and values you provide.
+      It does not connect to or modify your Kubernetes environment.
+    </div>
+    <p>You can start with your Thoras diagnostics plus the current JVM flags and memory limit —
+       no live JVM collection required. Optional <code>jcmd</code> measurements can refine the
+       recommendation further. Sections 1–3 are everything you need for a first result.</p>
+  </div>
+</div>
+
+<!-- ── Section 2: Minimum mental model ─────────────────────────────────────── -->
+<div class="step" data-n="2">
+  <div class="step-title">The minimum mental model</div>
+  <div class="step-body">
+    <h3>A. What Thoras measures</h3>
+    <p>The diagnostics package contains the selected container's historical working set — a container
+       metric that approximates actively used resident memory at each sample point.</p>
+    <pre>Observed container working set
+├─ Resident Java heap
+│  ├─ Live objects (retained after GC)
+│  └─ Garbage and other touched heap space
+├─ Resident JVM non-heap
+│  ├─ Metaspace
+│  ├─ Thread stacks
+│  └─ Code cache, direct buffers, and native memory
+└─ Other resident container memory</pre>
+    <p>Each sample is an age-filtered per-pod fleet average — an average across eligible replicas
+       at that timestamp, excluding newly started or recently terminated pods. Percentiles (p50, p90,
+       p99, max) are computed over these fleet-average snapshots, not over individual pods.
+       A workload with significant replica skew may have one pod consuming substantially more memory
+       than the average suggests — validate with pod-level metrics if skew is a concern.</p>
+    <p>The basic recommendation sizes from the historical p99 and observed maximum of this total.
+       The following are <strong>not</strong> part of the observed working set:</p>
+    <ul>
+      <li>Unused heap capacity up to Xmx</li>
+      <li>Kubernetes memory request</li>
+      <li>Unused capacity between peak usage and the container limit</li>
+      <li>Safety headroom added by the analyzer</li>
+    </ul>
+
+    <h3>B. What the current configuration tells us</h3>
+    <p>The JVM configuration defines two controls; Kubernetes defines two resource fields:</p>
+    <ul>
+      <li><strong>Xmx</strong> — the maximum Java heap the JVM may use</li>
+      <li><strong>Xms</strong> — the initial heap at startup</li>
+      <li><strong>Memory request</strong> — the amount Kubernetes accounts for when scheduling the pod</li>
+      <li><strong>Memory limit</strong> — the enforced OOM boundary for the container</li>
+    </ul>
+    <p>The basic calculation combines these with working-set history to recommend new values for all four.</p>
+
+    <h3>C. What optional JVM measurements add</h3>
+    <p>Two measurements from a live JVM can make the heap recommendation more direct:</p>
+    <ul>
+      <li><strong>Heap-used snapshot</strong> — a point-in-time measurement of Java heap after GC.run</li>
+      <li><strong>Metaspace</strong> — class metadata stored outside the Java heap</li>
+    </ul>
+    <p>These measurements do not replace Thoras diagnostics. The historical working set remains
+       visible in the output as a sanity check.</p>
+
+    <h3>D. What the analyzer adds</h3>
+    <p><strong>Safety headroom</strong> is intentionally unused capacity between expected peak
+       consumption and the container limit. It is not observed memory — the analyzer calculates it
+       and adds it to the recommendation.</p>
+
+    <h3>How this guide produces a recommendation</h3>
+    <figure class="fig-flow" aria-label="How each input source contributes to the recommendation">
+      <div class="flow-group">
+        <div class="flow-box">Thoras working-set history</div>
+        <div class="flow-outs">
+          <div class="flow-out"><span class="flow-arr">→</span> Recommended request</div>
+          <div class="flow-out"><span class="flow-arr">→</span> Diagnostics-only limit sizing</div>
+          <div class="flow-out"><span class="flow-arr">→</span> Historical validation of JVM-informed sizing</div>
+        </div>
+      </div>
+      <div class="flow-group">
+        <div class="flow-box">Current workload configuration</div>
+        <div class="flow-outs">
+          <div class="flow-out"><span class="flow-arr">→</span> Diagnostics-only heap inference</div>
+          <div class="flow-out"><span class="flow-arr">→</span> Current vs recommended comparison</div>
+        </div>
+      </div>
+      <div class="flow-group optional">
+        <div class="flow-box">Heap-used snapshot + metaspace <em>(optional)</em></div>
+        <div class="flow-outs">
+          <div class="flow-out"><span class="flow-arr">→</span> More direct heap and limit sizing</div>
+        </div>
+      </div>
+    </figure>
+    <p>Sections 1–3 are everything you need for this result. Sections 5–6 describe the optional
+       JVM-measured refinement.</p>
+  </div>
+</div>
+
+<!-- ── Section 3: Get a recommendation ─────────────────────────────────────── -->
+<div class="step" data-n="3">
+  <div class="step-title">Get a recommendation</div>
+  <div class="step-body">
+    <p>A working-set-based recommendation requires your diagnostics package, the current memory limit,
+       and the current JVM flags. The table below lists all inputs and when each applies.</p>
+
+    <table>
+      <thead><tr><th>Input</th><th>Where it comes from</th><th>Script argument</th></tr></thead>
+      <tbody>
+        <tr><td>Workload history and current request</td><td>Workload-specific Thoras diagnostics</td><td>positional path</td></tr>
+        <tr><td>Current memory limit</td><td>Workload resource configuration</td><td><code>--memory-limit</code></td></tr>
+        <tr><td>Current JVM flags</td><td>Deployment args, env, or ConfigMap</td><td><code>--flags</code></td></tr>
+        <tr><td>JVM container</td><td>Container names in diagnostics</td><td><code>--container</code> (only when multiple)</td></tr>
+        <tr><td>Risk preference</td><td>Your choice</td><td><code>--risk-profile</code> (default: balanced)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Input 1 — Diagnostics package</h3>
+    <p>Download from the Thoras UI: open the workload, choose <strong>Export diagnostics</strong>,
+       and save the zip file.</p>
+    <p><strong>Pass it as:</strong> the first positional argument to the script.</p>
+    <p>Why: contains working-set history and the current memory request for the workload.</p>
+    <p style="font-size:0.85em;color:var(--muted)">The script accepts any window length. Seven days or more gives the most representative percentiles; shorter windows still produce a recommendation with a note in the output.</p>
+
+    <h3>Input 2 — Current memory limit</h3>
+    <p>Run:</p>
+    <pre>kubectl -n NAMESPACE get deployment/NAME \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="CONTAINER")].resources.limits.memory}'</pre>
+    <p>Example output:</p>
+    <pre>16Gi</pre>
+    <p><strong>The value you need is:</strong> the full string as printed.</p>
+    <p><strong>Pass it as:</strong> <code>--memory-limit 16Gi</code></p>
+    <p>Why: this is the container's current OOM boundary and the baseline for the comparison table.</p>
+
+    <h3>Input 3 — Current JVM flags</h3>
+    <p>Run:</p>
+    <pre>kubectl -n NAMESPACE describe pod POD | grep -A5 JAVA_TOOL_OPTIONS</pre>
+    <p>Or read them from your Deployment spec, environment variables, or ConfigMap if that is where they are set.</p>
+    <p>Example output:</p>
+    <pre>JAVA_TOOL_OPTIONS: -XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=75.0</pre>
+    <p><strong>The value you need is:</strong> the flag string (everything after the colon).</p>
+    <p><strong>Pass it as:</strong> <code>--flags="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=75.0"</code></p>
+    <div class="tip">
+      <strong>What does <code>--flags</code> mean?</strong><br>
+      <code>--flags="..."</code> passes the workload's current JVM configuration to the analyzer as text — it does not execute those flags or change your workload.
+      Within that text, <code>-XX:+UseG1GC</code> is a JVM flag: the <code>+</code> enables the setting, and <code>UseG1GC</code> selects the G1 garbage collector.
+      Thoras defaults were developed primarily around G1 workloads. When another collector is detected or the collector is unknown, the analyzer still produces a recommendation but displays a collector warning because the defaults are not separately calibrated for that collector.
+      Copy the effective flags exactly — never add <code>-XX:+UseG1GC</code> merely to suppress the warning.
+    </div>
+    <p>Why: the script uses these to detect configuration findings, identify the GC type, and derive the current heap configuration.</p>
+    <div class="tip">
+      If no GC flag is visible in the supplied flags and you have independently confirmed G1GC (from GC logs or JMX),
+      pass <code>--assume-g1</code> to suppress the unknown-collector warning.
+      This flag has no effect when a non-G1 collector is explicitly detected.
+    </div>
+
+    <h3>Input 4 — Container name (multi-container workloads only)</h3>
+    <p>Run the script without <code>--container</code> first:</p>
+    <pre>python3 analyze_jvm.py checkout-diagnostics.zip \
+  --flags="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=75.0" \
+  --memory-limit 16Gi</pre>
+    <p>If the diagnostics package contains multiple containers, the script lists them:</p>
+    <pre>Multiple containers found in this diagnostics package:
+
+  - istio-proxy
+  - my-service
+
+Re-run with: --container CONTAINER_NAME</pre>
+    <p><strong>The value you need is:</strong> the name of your JVM container.</p>
+    <p><strong>Pass it as:</strong> <code>--container my-service</code></p>
+    <p>Why: ensures working-set history and request come from the JVM container, not a sidecar.</p>
+
+    <h3>Minimal command</h3>
+    <pre>python3 analyze_jvm.py checkout-diagnostics.zip \
+  --flags="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=75.0" \
+  --memory-limit 16Gi</pre>
+
+    <h3>Abbreviated example output</h3>
+    <p style="font-size:0.85em;color:var(--muted)">Generated from a synthetic seven-day workload history for illustration purposes.</p>
+    <pre>────────────────────────────────────────────────────────────
+  WORKLOAD: payments/checkout
+────────────────────────────────────────────────────────────
+  Container: application
+
+────────────────────────────────────────────────────────────
+  CONTAINER MEMORY WORKING SET
+────────────────────────────────────────────────────────────
+  Per-pod average:
+    p50    10.21 GiB   p90    10.43 GiB   p99    11.33 GiB   max    12.50 GiB
+  Current limit: 16.00 GiB
+
+────────────────────────────────────────────────────────────
+  CONFIGURATION FINDINGS
+────────────────────────────────────────────────────────────
+  ⚠  LARGE INITIAL HEAP: InitialRAMPercentage (75.0) = MaxRAMPercentage (75.0).
+     This favors predictable startup capacity but reduces memory elasticity.
+     For cost-oriented sizing, decouple Initial from Max.
+
+────────────────────────────────────────────────────────────
+  RECOMMENDATION
+────────────────────────────────────────────────────────────
+  Risk profile: Balanced
+
+  Observed p99 working set:  11.33 GiB
+  Observed maximum:          12.50 GiB
+
+                                   Current   Recommended    Difference
+                              ────────────  ────────────  ────────────
+  JVM maximum heap               12.00 GiB     10.19 GiB     -1.81 GiB
+  JVM initial heap               12.00 GiB      4.59 GiB     -7.41 GiB
+  Memory request                 16.00 GiB     13.59 GiB     -2.41 GiB
+  Memory limit                   16.00 GiB     13.59 GiB     -2.41 GiB
+
+  JVM configuration (percentage (MaxRAMPercentage)):
+    # Remove -Xmx and -Xms if present — absolute flags override percentage flags
+    -XX:MaxRAMPercentage=75.0
+    -XX:InitialRAMPercentage=33.8    # Thoras cost-oriented default
+
+    Container memory:
+      requests: 13919Mi
+      limits:   13919Mi</pre>
+
+    <p>Difference = Recommended &minus; Current. Negative values mean a reduction.
+       N/A means the current value could not be verified from the supplied flags.</p>
+    <p>Apply the values in the configuration block to your Deployment manifest or ConfigMap.
+       This is not paste-able YAML — update each field individually and remove any conflicting
+       <code>-Xmx</code>, <code>-Xms</code>, or percentage flags that are not shown.</p>
+  </div>
+</div>
+
+<!-- ── Section 4: How the basic calculation works ───────────────────────────── -->
+<div class="step" data-n="4">
+  <div class="step-title">How the basic calculation works</div>
+  <div class="step-body">
+    <p>Without jcmd measurements, the analyzer knows the total container working set but cannot
+       separate retained Java objects from garbage, metaspace, and other JVM memory. It therefore
+       sizes the container limit from historical p99 and maximum usage, then derives Xmx by
+       preserving the current heap-to-limit ratio — capped so the heap cannot consume the
+       entire container.</p>
+
+    <figure class="fig-plots" aria-label="Conceptual comparison of JVM heap behavior and historical container working set">
+      <!-- Left panel: JVM heap sawtooth -->
+      <div class="fig-panel">
+        <p class="fig-panel-title">Conceptual JVM heap-used behavior</p>
+        <svg viewBox="0 0 295 145" role="img"
+             aria-label="Illustrative JVM heap sawtooth with a highlighted heap-used snapshot point">
+          <title>Conceptual JVM heap-used behavior</title>
+          <style>
+            .vpa { stroke: var(--rule); stroke-width: 1; fill: none; }
+            .vcl { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+            .vdot { fill: var(--accent); }
+            .vtxt { font-family: system-ui, -apple-system, sans-serif; }
+          </style>
+          <line class="vpa" x1="18" y1="8" x2="18" y2="132"/>
+          <line class="vpa" x1="18" y1="132" x2="285" y2="132"/>
+          <polyline class="vcl"
+            points="20,110 40,80 42,116 62,77 64,114 84,74 86,111 106,72 108,109 128,69 130,107 150,67 152,105 172,65 174,103 194,63 196,101 216,61 218,99 238,59 240,97 260,57 262,95 272,106"/>
+          <circle class="vdot" cx="272" cy="106" r="5"/>
+          <line x1="267" y1="101" x2="248" y2="87" style="stroke:var(--accent);stroke-width:.9"/>
+          <text class="vtxt" x="245" y="85" text-anchor="end" font-size="9.5"
+                style="fill:var(--accent)">Heap-used snapshot (jcmd)</text>
+        </svg>
+        <p class="fig-panel-note">Illustrative — not collected by Thoras</p>
+      </div>
+
+      <!-- Right panel: container working set -->
+      <div class="fig-panel">
+        <p class="fig-panel-title">Historical container working set</p>
+        <svg viewBox="0 0 295 145" role="img"
+             aria-label="Historical container working set from Thoras diagnostics, shown as an irregular curve">
+          <title>Historical container working set</title>
+          <style>
+            .vpa2 { stroke: var(--rule); stroke-width: 1; fill: none; }
+            .vcr  { fill: none; stroke: var(--accent2); stroke-width: 1.5; stroke-linejoin: round; }
+          </style>
+          <line class="vpa2" x1="18" y1="8" x2="18" y2="132"/>
+          <line class="vpa2" x1="18" y1="132" x2="285" y2="132"/>
+          <polyline class="vcr"
+            points="20,96 36,90 52,98 68,88 84,95 100,87 116,94 132,88 148,94 164,86 180,92 196,87 212,93 228,86 244,92 260,87 276,92 285,88"/>
+        </svg>
+        <p class="fig-panel-note">from Thoras diagnostics</p>
+      </div>
+
+      <figcaption style="grid-column:1/-1">Conceptual illustration — not client telemetry. Thoras diagnostics contain historical container working set.
+        jcmd adds a point-in-time heap-used snapshot; GC.run requests garbage collection before that snapshot is collected.</figcaption>
+    </figure>
+
+    <pre>Recommended limit =
+    max(
+        p99 working set × risk-profile margin,
+        observed maximum × 1.05
+    )
+
+Current heap ratio =
+    current Xmx ÷ current limit
+
+Recommended Xmx =
+    recommended limit × min(current heap ratio, 80%)
+    leaving at least 300 MiB outside the heap
+
+Recommended Xms =
+    45% of recommended Xmx
+
+Recommended request =
+    min(historical p99 × risk-profile margin, recommended limit)</pre>
+
+    <div class="why-grid">
+      <span class="why-term">Risk margin</span>
+      <span class="why-desc">adds capacity above historical p99 for normal variation and uncertainty in historical usage.</span>
+      <span class="why-term">Maximum floor</span>
+      <span class="why-desc">preserves 5% above the highest observed sample.</span>
+      <span class="why-term">80% heap cap</span>
+      <span class="why-desc">preserves room outside the heap when JVM-native memory is not measured.</span>
+      <span class="why-term">300 MiB fallback</span>
+      <span class="why-desc">reserves space for all unmeasured memory outside the heap, including metaspace (unmeasured on this path).</span>
+      <span class="why-term">45% Xms</span>
+      <span class="why-desc">Thoras cost-oriented default for maintaining heap-size elasticity. Equal Xms and Xmx can favor latency consistency but reduce memory elasticity.</span>
+    </div>
+    <p>The request is sized from historical working set independently of the current request.
+       The same p99 × margin used for the limit floor also drives the request, so both move
+       together when the working set changes.</p>
+  </div>
+</div>
+
+<!-- ── Section 5: Improve with JVM measurements (optional) ──────────────────── -->
+<div class="step" data-n="5">
+  <div class="step-title">Improve with JVM measurements <em style="font-size:0.8em;font-weight:400;color:var(--muted)">(optional)</em></div>
+  <div class="step-body">
+    <div class="ok">
+      You already have a usable recommendation. Continue only if you want to improve accuracy
+      with live JVM measurements.
+    </div>
+    <pre>Optional refinement
+
+  Heap-used snapshot
+  + measured metaspace
+  + Thoras working-set validation
+  → more direct JVM-informed Xmx and limit
+  → request still sized from historical p99</pre>
+    <p>Container working set shows total consumption. A heap-used snapshot provides a more direct
+       measure of live heap, letting the script size the heap directly rather than preserving the
+       current heap-to-container ratio. The memory request is still sized from historical working
+       set in both paths.</p>
+
+    <h3>Step A — Find the Java PID</h3>
+    <pre>kubectl -n NAMESPACE exec POD_NAME -c CONTAINER -- jcmd -l</pre>
+    <p>Example output:</p>
+    <pre>1 /app.jar</pre>
+    <p><strong>The value you need is:</strong> the number at the left (the process ID).</p>
+    <p><strong>Pass it as:</strong> <code>PID</code> in the commands below.</p>
+    <p>Why: identifies which Java process to query on the pod.</p>
+
+    <h3>Step B — Read effective JVM flags (preferred flag source)</h3>
+    <pre>kubectl -n NAMESPACE exec POD_NAME -c CONTAINER -- jcmd PID VM.flags</pre>
+    <p>Example output:</p>
+    <pre>-XX:InitialHeapSize=12884901888 -XX:MaxHeapSize=12884901888 -XX:+UseG1GC -XX:MaxRAMPercentage=75.000000</pre>
+    <p><strong>The value you need is:</strong> the full flag string.</p>
+    <p><strong>Pass it as:</strong> <code>--flags="-XX:InitialHeapSize=12884901888 -XX:MaxHeapSize=12884901888 -XX:+UseG1GC -XX:MaxRAMPercentage=75.000000"</code></p>
+    <p>Why: VM.flags includes ergonomic defaults that may not appear in JAVA_TOOL_OPTIONS,
+       giving the script a complete picture of the effective heap configuration.</p>
+
+    <h3>Step C — Collect heap-used snapshot and metaspace</h3>
+    <div class="warn">
+      <strong>GC.run requests garbage collection.</strong>
+      JVM behavior varies — it may pause the application, run concurrently, or be ignored.
+      Treat the subsequent heap-used value as an estimate of retained heap.
+      Run it only when a brief pause is acceptable for this workload.
+    </div>
+    <pre>kubectl -n NAMESPACE exec POD_NAME -c CONTAINER -- jcmd PID GC.run
+kubectl -n NAMESPACE exec POD_NAME -c CONTAINER -- jcmd PID GC.heap_info</pre>
+    <p>Example output:</p>
+    <pre>garbage-first heap   total 12582912K, used 4718592K [...]
+Metaspace            used 196608K [...]</pre>
+    <p><strong>The values you need are:</strong></p>
+    <ul>
+      <li>Heap-used snapshot: <code>4718592K</code> — the <code>used</code> value on the heap line</li>
+      <li>Metaspace: <code>196608K</code> — the <code>used</code> value on the Metaspace line</li>
+    </ul>
+    <p><strong>Pass them as:</strong> <code>--live-set 4718592K --metaspace 196608K</code></p>
+    <div class="tip">
+      jcmd uses K to mean 1024 bytes (not 1000). The script accepts the value with the K suffix
+      directly — do not convert it.
+    </div>
+    <p>Why: these measurements replace working-set inference for Xmx and JVM-informed limit
+       construction. Historical working set still sizes the request and validates the
+       recommended limit.</p>
+    <p>Collect during representative load. Take several measurements and use the largest snapshot
+       value. The pod and container must belong to the same workload as the diagnostics package.</p>
+
+    <h3>Step D — Record the source pod</h3>
+    <p><strong>Pass it as:</strong> <code>--jcmd-pod POD_NAME</code> (use the same pod name from the commands above)</p>
+    <p>Why: recorded in the report so the recommendation can be traced back to its source measurements.</p>
+
+    <h3>Full command with measurements</h3>
+    <pre>python3 analyze_jvm.py checkout-diagnostics.zip \
+  --flags="-XX:InitialHeapSize=12884901888 -XX:MaxHeapSize=12884901888 -XX:+UseG1GC -XX:MaxRAMPercentage=75.000000" \
+  --memory-limit 16Gi \
+  --live-set 4718592K \
+  --metaspace 196608K \
+  --jcmd-pod checkout-6d8f9b-xk2pq</pre>
+    <p>Use the flags copied from Step B exactly as printed. If the workload has multiple containers,
+       add <code>--container CONTAINER_NAME</code> before the other arguments.</p>
+
+    <p>Before applying: resolve any active OOMKills or known material memory differences between
+       replicas.</p>
+  </div>
+</div>
+
+<!-- ── Section 6: JVM-measured calculation ─────────────────────────────────── -->
+<div class="step" data-n="6">
+  <div class="step-title">How the JVM-measured calculation works</div>
+  <div class="step-body">
+    <p>With a heap-used snapshot and measured metaspace, the analyzer can size Xmx from retained
+       heap demand and build the container limit from its components. Working-set history validates
+       the result — if the recommended limit falls below 30% of the observed p99, the configuration
+       is withheld.</p>
+    <pre>Xmx  = heap-used snapshot × risk-profile multiplier
+Xms  = Xmx × 45%
+
+Container limit =
+    Xmx
+    + measured metaspace
+    + non-heap fallback allowance (default 300 MiB)
+    + Xmx × 12% safety headroom
+
+Request =
+    min(historical p99 × risk-profile margin, recommended limit)</pre>
+
+    <figure class="fig-stack" aria-label="JVM-informed container limit composition">
+      <div class="stack-total">Recommended Kubernetes memory limit</div>
+      <div class="stack-bar">
+        <div class="seg seg-hd">
+          <span class="seg-name">Safety headroom</span>
+          <span class="seg-sub">Xmx &times; 12%</span>
+        </div>
+        <div class="seg seg-fb">
+          <span class="seg-name">Non-heap fallback allowance</span>
+          <span class="seg-sub">300 MiB default</span>
+        </div>
+        <div class="seg seg-ms">
+          <span class="seg-name">Measured metaspace</span>
+          <span class="seg-sub">from jcmd GC.heap_info</span>
+        </div>
+        <div class="seg seg-xmx">
+          <span class="seg-name">Xmx</span>
+          <span class="seg-sub">heap-used snapshot &times; risk-profile multiplier</span>
+        </div>
+      </div>
+      <p class="stack-note">Conceptual — not proportionally scaled</p>
+    </figure>
+
+    <div class="why-grid">
+      <span class="why-term">300 MiB fallback</span>
+      <span class="why-desc">reserves space for other unmeasured native/non-heap memory; measured metaspace is added separately.</span>
+      <span class="why-term">12% headroom</span>
+      <span class="why-desc">keeps modeled JVM consumption below the container's OOM boundary.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 7: Risk profiles ────────────────────────────────────────────── -->
+<div class="step" data-n="7">
+  <div class="step-title">Risk profiles</div>
+  <div class="step-body">
+    <table>
+      <thead>
+        <tr><th>Profile</th><th>Without JVM measurements</th><th>With heap-used snapshot</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>savings</td><td>p99 × 1.10</td><td>snapshot × 2.0</td></tr>
+        <tr><td><strong>balanced</strong> (default)</td><td>p99 × 1.20</td><td>snapshot × 2.5</td></tr>
+        <tr><td>reliability</td><td>p99 × 1.30</td><td>snapshot × 3.0</td></tr>
+      </tbody>
+    </table>
+    <p>These multipliers and margins are Thoras policy starting points intended to provide a buffer
+       for normal variation and uncertainty in historical usage. They should be calibrated
+       against production outcomes — your account team can adjust them based on workload-specific
+       behavior observed after rollout.</p>
+    <p>Most workloads should use <strong>balanced</strong>. Choose <strong>savings</strong> only when your
+       organization intentionally accepts tighter margins. Choose <strong>reliability</strong> for
+       workloads where a pause or restart is particularly costly.</p>
+    <p>Pass your choice as: <code>--risk-profile savings</code> or <code>--risk-profile reliability</code></p>
+  </div>
+</div>
+
+<!-- ── Section 8: Reading the output ───────────────────────────────────────── -->
+<div class="step" data-n="8">
+  <div class="step-title">Reading the output</div>
+  <div class="step-body">
+    <h3>The comparison table</h3>
+    <p>A request reduction frees schedulable capacity. A limit reduction changes the OOM boundary.
+       Neither alone guarantees a cost reduction — that depends on node utilization and scheduling.</p>
+
+    <h3>The configuration block</h3>
+    <p>The block shows the values to apply to your JVM flags and Kubernetes resource fields.
+       Update your Deployment manifest or ConfigMap — do not paste the block directly as YAML.
+       Remove any conflicting <code>-Xmx</code>, <code>-Xms</code>, <code>MaxRAMPercentage</code>,
+       or <code>InitialRAMPercentage</code> settings before applying.</p>
+    <p>When current flags were not supplied (<code>--assume-g1</code> path), the comparison table
+       shows Unknown for current heap values and N/A for those differences. Verify your actual
+       flag configuration before applying the recommendation.</p>
+
+    <h3>Historical-limit warning ladder</h3>
+    <p>After calculating the recommended limit, the script compares it to historical p99 and maximum.
+       The result determines whether the configuration is shown, qualified, or withheld:</p>
+    <table>
+      <thead><tr><th>Condition</th><th>Severity</th><th>Behavior</th></tr></thead>
+      <tbody>
+        <tr><td>limit ≥ observed maximum</td><td>None</td><td>Configuration shown without historical-capacity note</td></tr>
+        <tr><td>p99 ≤ limit &lt; observed maximum</td><td>High-water mark</td><td>Configuration shown; note that an isolated peak above p99 would not be covered</td></tr>
+        <tr><td>30% × p99 ≤ limit &lt; p99</td><td>Staged validation</td><td>Configuration shown; staged deployment and monitoring required before broad rollout</td></tr>
+        <tr><td>limit &lt; 30% × p99</td><td>Withhold</td><td>Configuration withheld; candidate values shown for reference — reconcile inputs before applying</td></tr>
+      </tbody>
+    </table>
+
+    <h3>When no recommendation appears</h3>
+    <ul>
+      <li><strong>No flags supplied</strong>: shows working-set statistics and analysis only. A JVM-measured recommendation can still be produced if <code>--live-set</code>, <code>--metaspace</code>, and <code>--jcmd-pod</code> are provided.</li>
+      <li><strong>No memory limit supplied</strong>: prevents a diagnostics-only recommendation. JVM-measured sizing can still produce a recommendation, but the current memory-limit comparison will be unavailable.</li>
+      <li><strong>Unknown or non-G1 collector</strong>: a recommendation is still produced, but a collector warning is displayed. Use <code>--assume-g1</code> to suppress the warning when G1 is confirmed but no GC flag is visible in the supplied flags. Has no effect when a non-G1 collector is explicitly detected.</li>
+      <li><strong>Withheld configuration</strong>: the recommended limit is below 30% of observed p99 — see ladder above. Verify the measurements came from the correct workload and rerun.</li>
+    </ul>
+
+    <h3>Apply the result</h3>
+    <p>Apply the recommendation using your organization's standard staged deployment and rollback process.
+       Memory limit changes require a pod restart to take effect.</p>
+  </div>
+</div>
+
+<!-- ── Section 9: Advanced overrides ───────────────────────────────────────── -->
+<div class="step" data-n="9">
+  <div class="step-title">Advanced overrides <em style="font-size:0.8em;font-weight:400;color:var(--muted)">— usually leave these unchanged</em></div>
+  <div class="step-body">
+    <table>
+      <thead>
+        <tr><th>Override</th><th>Default</th><th>Path</th><th>When to change</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>--working-set-margin</code></td>
+          <td>profile default</td>
+          <td>both</td>
+          <td>Affects the p99 limit candidate on the diagnostics-only path and the memory request on both paths. Decreasing it risks insufficient headroom; increasing it reduces savings.</td>
+        </tr>
+        <tr>
+          <td><code>--gc-multiplier</code></td>
+          <td>profile default</td>
+          <td>JVM-measured</td>
+          <td>Choose a custom value within 2.0–3.0 when the three standard profile values are insufficient. Lower values increase GC pressure and collection frequency; higher values limit achievable savings.</td>
+        </tr>
+        <tr>
+          <td><code>--overhead-bytes</code></td>
+          <td>300 MiB</td>
+          <td>both</td>
+          <td>Minimum outside-heap allowance for thread stacks, code cache, direct buffers, and native libs. In JVM-measured mode, measured metaspace is added separately. Increase for native-heavy workloads; decreasing risks OOM from unmeasured native memory.</td>
+        </tr>
+        <tr>
+          <td><code>--headroom-ratio</code></td>
+          <td>12%</td>
+          <td>JVM-measured</td>
+          <td>You need a different container-level safety buffer above the calculated heap ceiling. Decreasing risks OOM under allocation spikes; increasing reduces savings.</td>
+        </tr>
+        <tr>
+          <td><code>--heap-style</code></td>
+          <td>auto</td>
+          <td>both</td>
+          <td>You intentionally want absolute (<code>-Xmx</code>) or percentage (<code>MaxRAMPercentage</code>) output regardless of the current configuration style.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<hr>
+
+<!-- ── Appendix ─────────────────────────────────────────────────────────────── -->
+<h2>Appendix — CLI reference</h2>
+
+<table class="qr-table" style="margin-top:1rem">
+  <thead><tr><th>Argument</th><th>Accepts</th><th>When required</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>package</code></td><td>path</td><td>always</td><td>Diagnostics zip or extracted directory</td></tr>
+    <tr><td><code>--container</code></td><td>name</td><td>when multiple containers</td><td>JVM container to analyze</td></tr>
+    <tr><td><code>--flags</code></td><td>string</td><td>for working-set recommendation</td><td>Current JVM flags as deployed</td></tr>
+    <tr><td><code>--memory-limit</code></td><td>bytes or quantity</td><td>working-set path (required); JVM-measured path (recommended)</td><td>Current container memory limit (e.g. <code>16Gi</code>)</td></tr>
+    <tr><td><code>--assume-g1</code></td><td>flag</td><td>—</td><td>Suppress the unknown-collector warning when G1 has been independently confirmed but no GC flag is visible in the supplied flags. Has no effect when a non-G1 collector is explicitly detected.</td></tr>
+    <tr><td><code>--live-set</code></td><td>bytes or quantity</td><td>with <code>--metaspace</code></td><td>Heap-used snapshot from jcmd GC.heap_info after GC.run (accepts K=1024 suffix)</td></tr>
+    <tr><td><code>--metaspace</code></td><td>bytes or quantity</td><td>with <code>--live-set</code></td><td>Metaspace used from jcmd GC.heap_info (accepts K=1024 suffix)</td></tr>
+    <tr><td><code>--jcmd-pod</code></td><td>pod name</td><td>required with <code>--live-set</code></td><td>Source pod for JVM measurements; recorded in the console output for traceability</td></tr>
+    <tr><td><code>--risk-profile</code></td><td>savings/balanced/reliability</td><td>—</td><td>Sizing margin profile (default: balanced)</td></tr>
+    <tr><td><code>--heap-style</code></td><td>auto/absolute/percentage</td><td>—</td><td>Output flag style (default: auto)</td></tr>
+    <tr><td><code>--gc-multiplier</code></td><td>float</td><td>—</td><td>Override heap-used-snapshot multiplier</td></tr>
+    <tr><td><code>--working-set-margin</code></td><td>float</td><td>—</td><td>Override working-set margin</td></tr>
+    <tr><td><code>--overhead-bytes</code></td><td>bytes or quantity</td><td>—</td><td>Outside-heap allowance (default: 300 MiB); metaspace added separately in JVM-measured mode</td></tr>
+    <tr><td><code>--headroom-ratio</code></td><td>float</td><td>—</td><td>Container headroom fraction (default: 0.12)</td></tr>
+  </tbody>
+</table>
+
+<h3 style="margin-top:1.6rem">Validation tree</h3>
+<table>
+  <thead><tr><th>Inputs available</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Diagnostics only</td><td>Working-set statistics; no recommendation</td></tr>
+    <tr><td>+ flags (G1 confirmed) + limit</td><td>Working-set-based recommendation</td></tr>
+    <tr><td>+ flags (collector unknown or non-G1) + limit</td><td>Working-set-based recommendation with collector warning</td></tr>
+    <tr><td>+ flags + limit + live set + metaspace + jcmd-pod</td><td>JVM-measured recommendation</td></tr>
+    <tr><td>No flags + live set + metaspace + jcmd-pod</td><td>JVM-measured recommendation; collector and current heap values unknown</td></tr>
+    <tr><td>Explicit non-G1 collector in flags</td><td>Recommendation with collector calibration warning; <code>--assume-g1</code> does not suppress this warning</td></tr>
+    <tr><td>Only one of live set / metaspace</td><td>Input error</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  Thoras JVM Memory Sizing Guide &nbsp;·&nbsp; Contact your Thoras account team with questions.
+</footer>
